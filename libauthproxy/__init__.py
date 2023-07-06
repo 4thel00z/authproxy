@@ -82,7 +82,7 @@ async def get_current_user(
         payload = jwt.decode(token, secret, algorithms=[algorithm])
         username: str = payload.get("sub")
 
-        if username is None:
+        if not username:
             raise credentials_exception
 
         user = await get_user_by_username(db, username=username)
@@ -100,5 +100,5 @@ def get_current_active_user(
         current_user
 ):
     if current_user.disabled:
-        raise HTTPException(status_code=400, detail="Inactive user")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Inactive user")
     return current_user

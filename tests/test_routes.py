@@ -1,11 +1,14 @@
+from datetime import timedelta
+
 import httpx
 import pytest
 from fastapi import HTTPException
+from starlette import status
 from starlette.testclient import TestClient
 
 from authproxy import init_app
 from db import GetUserByEmailResult
-from libauthproxy import get_current_user
+from libauthproxy import get_current_user, create_access_token
 
 
 class DBMock:
@@ -91,3 +94,101 @@ async def test_create_token__no_user():
         "password": "password"
     })
     assert res.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_users_me__happy_flow():
+    mock = DBMock(query_single_result=GetUserByEmailResult(
+        id="fake-news",
+        username="buffy",
+        email="buffy@buff.com",
+        first_name="not-needed",
+        last_name="not-needed",
+        # obtained by running `poetry run python3 scripts/hash_password.py BIGMOE`
+        password_hash="$2b$12$hz/PMvvmutOVPgZol3.0F.nZboj6O1Fklv0LGWS4xE3UwH1HyVwge",
+        disabled=False,
+    ))
+
+    app = init_app(db=mock, secret_key="habins")
+    client = TestClient(app)
+    token = create_access_token("habins", "HS256", {"sub": "buffy"}, timedelta(days=1))
+    res: httpx.Response = client.get("/users/me", headers={"authorization": f"Bearer {token}"})
+    assert res.status_code == status.HTTP_200_OK
+    assert res.json() == {
+        'username': 'buffy',
+        'email': 'buffy@buff.com',
+        'first_name': 'not-needed',
+        'last_name': 'not-needed',
+        'disabled': False
+    }
+
+
+@pytest.mark.asyncio
+async def test_users_me__no_user():
+    mock = DBMock(query_single_result=None)
+
+    app = init_app(db=mock, secret_key="habins")
+    client = TestClient(app)
+    token = create_access_token("habins", "HS256", {"sub": "bigmoe"}, timedelta(days=1))
+    res: httpx.Response = client.get("/users/me", headers={"authorization": f"Bearer {token}"})
+    assert res.status_code == status.HTTP_401_UNAUTHORIZED
+
+
+@pytest.mark.asyncio
+async def test_users_me__invalid_token_sub_missing():
+    mock = DBMock(query_single_result=GetUserByEmailResult(
+        id="fake-news",
+        username="buffy",
+        email="buffy@buff.com",
+        first_name="not-needed",
+        last_name="not-needed",
+        # obtained by running `poetry run python3 scripts/hash_password.py BIGMOE`
+        password_hash="$2b$12$hz/PMvvmutOVPgZol3.0F.nZboj6O1Fklv0LGWS4xE3UwH1HyVwge",
+        disabled=False,
+    ))
+
+    app = init_app(db=mock, secret_key="habins")
+    client = TestClient(app)
+    token = create_access_token("habins", "HS256", {}, timedelta(days=1))
+    res: httpx.Response = client.get("/users/me", headers={"authorization": f"Bearer {token}"})
+    assert res.status_code == status.HTTP_401_UNAUTHORIZED
+
+
+@pytest.mark.asyncio
+async def test_users_me__invalid_token_sub_empty():
+    mock = DBMock(query_single_result=GetUserByEmailResult(
+        id="fake-news",
+        username="buffy",
+        email="buffy@buff.com",
+        first_name="not-needed",
+        last_name="not-needed",
+        # obtained by running `poetry run python3 scripts/hash_password.py BIGMOE`
+        password_hash="$2b$12$hz/PMvvmutOVPgZol3.0F.nZboj6O1Fklv0LGWS4xE3UwH1HyVwge",
+        disabled=False,
+    ))
+
+    app = init_app(db=mock, secret_key="habins")
+    client = TestClient(app)
+    token = create_access_token("habins", "HS256", {"sub": ""}, timedelta(days=1))
+    res: httpx.Response = client.get("/users/me", headers={"authorization": f"Bearer {token}"})
+    assert res.status_code == status.HTTP_401_UNAUTHORIZED
+
+
+@pytest.mark.asyncio
+async def test_users_me__user_disabled():
+    mock = DBMock(query_single_result=GetUserByEmailResult(
+        id="fake-news",
+        username="buffy",
+        email="buffy@buff.com",
+        first_name="not-needed",
+        last_name="not-needed",
+        # obtained by running `poetry run python3 scripts/hash_password.py BIGMOE`
+        password_hash="$2b$12$hz/PMvvmutOVPgZol3.0F.nZboj6O1Fklv0LGWS4xE3UwH1HyVwge",
+        disabled=True,
+    ))
+
+    app = init_app(db=mock, secret_key="habins")
+    client = TestClient(app)
+    token = create_access_token("habins", "HS256", {"sub": "buffy"}, timedelta(days=1))
+    res: httpx.Response = client.get("/users/me", headers={"authorization": f"Bearer {token}"})
+    assert res.status_code == status.HTTP_403_FORBIDDEN
