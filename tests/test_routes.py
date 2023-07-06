@@ -1,6 +1,7 @@
 import httpx
 import pytest
 from fastapi import HTTPException
+from starlette.testclient import TestClient
 
 from authproxy import init_app
 from db import GetUserByEmailResult
@@ -21,8 +22,6 @@ class DBMock:
 
 @pytest.mark.asyncio
 async def test_create_token__user_is_present_hash_matches():
-    from starlette.testclient import TestClient
-
     expected_user = GetUserByEmailResult(
         id="fake-news",
         username="buffy",
@@ -59,8 +58,6 @@ async def test_create_token__user_is_present_hash_matches():
 
 @pytest.mark.asyncio
 async def test_create_token__user_is_present_wrong_hash():
-    from starlette.testclient import TestClient
-
     mock = DBMock(query_single_result=GetUserByEmailResult(
         id="fake-news",
         username="buffy",
@@ -84,8 +81,6 @@ async def test_create_token__user_is_present_wrong_hash():
 
 @pytest.mark.asyncio
 async def test_create_token__no_user():
-    from starlette.testclient import TestClient
-
     mock = DBMock(query_single_result=None)
 
     app = init_app(db=mock, secret_key="habins")
