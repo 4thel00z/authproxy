@@ -5,3 +5,6 @@ run:
 
 generate:
 	@edgedb-py --file db.py
+
+test:
+	@poetry run pytest

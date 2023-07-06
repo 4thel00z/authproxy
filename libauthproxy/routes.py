@@ -19,11 +19,14 @@ from libauthproxy import (
 )
 
 
-def register_routes(app: FastAPI, db: AsyncIOClient):
+def register_routes(app: FastAPI, db: AsyncIOClient, **kwargs):
     L = logging.getLogger(__name__)
     L.setLevel(logging.DEBUG)
+    secret_key = kwargs.get("secret_key", SECRET_KEY)
+    jwt_algorithm = kwargs.get("jwt_algorithm", JWT_ALGORITHM)
+    access_token_expiry = kwargs.get("access_token_expiry", ACCESS_TOKEN_EXPIRY)
 
-    if not all((SECRET_KEY, JWT_ALGORITHM, ACCESS_TOKEN_EXPIRY)):
+    if not all((secret_key, jwt_algorithm, access_token_expiry)):
         raise EnvironmentError("$SECRET_KEY, $JWT_ALGORITHM and ACCESS_TOKEN_EXPIRY have to be set")
 
     L.info("Registering POST http://0.0.0.0:1337/token")
@@ -39,10 +42,10 @@ def register_routes(app: FastAPI, db: AsyncIOClient):
                 detail="Incorrect username or password",
                 headers={"WWW-Authenticate": "Bearer"},
             )
-        access_token_expires = timedelta(seconds=ACCESS_TOKEN_EXPIRY)
+        access_token_expires = timedelta(seconds=access_token_expiry)
         access_token = create_access_token(
-            SECRET_KEY,
-            JWT_ALGORITHM,
+            secret_key,
+            jwt_algorithm,
             data={
                 "sub": user.username,
                 "email": user.email,
@@ -58,4 +61,4 @@ def register_routes(app: FastAPI, db: AsyncIOClient):
     async def handle_read_users_me(
             req: Request,
     ):
-        return get_current_active_user(await get_current_user(db, SECRET_KEY, JWT_ALGORITHM, await OAUTH2(req)))
+        return get_current_active_user(await get_current_user(db, secret_key, jwt_algorithm, await OAUTH2(req)))
