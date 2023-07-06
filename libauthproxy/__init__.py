@@ -21,6 +21,8 @@ OAUTH2 = OAuth2PasswordBearer(tokenUrl="token")
 SECRET_KEY = environ.get("SECRET_KEY")
 JWT_ALGORITHM = environ.get("JWT_ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRY = int(environ.get("ACCESS_TOKEN_EXPIRY", "3600"))
+HOST = environ.get("HOST", "0.0.0.0")
+PORT = int(environ.get("PORT", "1337"))
 
 
 class Token(BaseModel):
@@ -43,8 +45,10 @@ class UserInDB(User):
 def verify_password(plain_password, hashed_password):
     return PWD_CONTEXT.verify(plain_password, hashed_password)
 
-def hash_password(plain_password:str) -> str:
+
+def hash_password(plain_password: str) -> str:
     return PWD_CONTEXT.hash(plain_password)
+
 
 async def authenticate_user(db: AsyncIOClient, username: str, password: str) -> bool | GetUserByEmailResult:
     user = await get_user_by_username(db, username=username)
