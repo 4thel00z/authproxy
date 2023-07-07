@@ -68,7 +68,7 @@ async def get_current_user(
         username: str = payload.get("sub")
         tenant: str = payload.get("tenant")
 
-        if not username:
+        if not username or not tenant:
             raise credentials_exception
 
         user = await get_user_by_username(db, username=username, tenant=tenant)

@@ -1,4 +1,5 @@
 from datetime import timedelta
+from uuid import UUID
 
 import httpx
 import pytest
@@ -26,7 +27,7 @@ class DBMock:
 @pytest.mark.asyncio
 async def test_create_token__user_is_present_hash_matches():
     expected_user = GetUserByEmailResult(
-        id="fake-news",
+        id=UUID('12345678123456781234567812345678'),
         username="buffy",
         email="buffy@buff.com",
         first_name="not-needed",
@@ -35,7 +36,7 @@ async def test_create_token__user_is_present_hash_matches():
         password_hash="$2b$12$lYWCG4Gu9mRViAKBjKW0zudnt9eXeQb0SHEIfJ4fSz3JJ2P1Zdyea",
         disabled=False,
         roles=[],
-        tenant=GetUserByEmailResultTenant(id="1234-1234-1234-1234", name="aldi")
+        tenant=GetUserByEmailResultTenant(id=UUID('12345678123456781234567812345678'), name="aldi")
     )
     mock = DBMock(query_single_result=expected_user)
 
@@ -65,7 +66,7 @@ async def test_create_token__user_is_present_hash_matches():
 @pytest.mark.asyncio
 async def test_create_token__user_is_present_wrong_hash():
     mock = DBMock(query_single_result=GetUserByEmailResult(
-        id="fake-news",
+        id=UUID('12345678123456781234567812345678'),
         username="buffy",
         email="buffy@buff.com",
         first_name="not-needed",
@@ -74,7 +75,7 @@ async def test_create_token__user_is_present_wrong_hash():
         password_hash="$2b$12$hz/PMvvmutOVPgZol3.0F.nZboj6O1Fklv0LGWS4xE3UwH1HyVwge",
         disabled=False,
         roles=[],
-        tenant=GetUserByEmailResultTenant(id="1234-1234-1234-1234", name="aldi")
+        tenant=GetUserByEmailResultTenant(id=UUID('12345678123456781234567812345678'), name="aldi")
     ))
 
     app = init_app(db=mock, secret_key="habins", admin_username="admin", admin_password="admin")
@@ -106,7 +107,7 @@ async def test_create_token__no_user():
 @pytest.mark.asyncio
 async def test_users_me__happy_flow():
     mock = DBMock(query_single_result=GetUserByEmailResult(
-        id="fake-news",
+        id=UUID('12345678123456781234567812345678'),
         username="buffy",
         email="buffy@buff.com",
         first_name="not-needed",
@@ -115,12 +116,12 @@ async def test_users_me__happy_flow():
         password_hash="$2b$12$hz/PMvvmutOVPgZol3.0F.nZboj6O1Fklv0LGWS4xE3UwH1HyVwge",
         disabled=False,
         roles=[],
-        tenant=GetUserByEmailResultTenant(id="1234-1234-1234-1234", name="aldi")
+        tenant=GetUserByEmailResultTenant(id=UUID('12345678123456781234567812345678'), name="aldi")
     ))
 
     app = init_app(db=mock, secret_key="habins", admin_username="admin", admin_password="admin")
     client = TestClient(app)
-    token = create_access_token("habins", "HS256", {"sub": "buffy"}, timedelta(days=1))
+    token = create_access_token("habins", "HS256", {"sub": "buffy", "tenant": "bigmoe"}, timedelta(days=1))
     res: httpx.Response = client.get("/users/me", headers={"authorization": f"Bearer {token}"})
     assert res.status_code == status.HTTP_200_OK
     assert res.json() == {
@@ -128,83 +129,85 @@ async def test_users_me__happy_flow():
         'email': 'buffy@buff.com',
         'first_name': 'not-needed',
         'last_name': 'not-needed',
-        'disabled': False
+        'disabled': False,
+        'roles': [],
+        'password_hash': '$2b$12$hz/PMvvmutOVPgZol3.0F.nZboj6O1Fklv0LGWS4xE3UwH1HyVwge',
+        'id': '12345678-1234-5678-1234-567812345678',
+        'tenant': {
+            'id': '12345678-1234-5678-1234-567812345678',
+            'name': 'aldi'
+        },
     }
 
+    @pytest.mark.asyncio
+    async def test_users_me__no_user():
+        mock = DBMock(query_single_result=None)
+        app = init_app(db=mock, secret_key="habins", admin_username="admin", admin_password="admin")
+        client = TestClient(app)
+        token = create_access_token("habins", "HS256", {"sub": "bigmoe"}, timedelta(days=1))
+        res: httpx.Response = client.get("/users/me", headers={"authorization": f"Bearer {token}"})
+        assert res.status_code == status.HTTP_401_UNAUTHORIZED
 
-@pytest.mark.asyncio
-async def test_users_me__no_user():
-    mock = DBMock(query_single_result=None)
+    @pytest.mark.asyncio
+    async def test_users_me__invalid_token_sub_missing():
+        mock = DBMock(query_single_result=GetUserByEmailResult(
+            id=UUID('12345678123456781234567812345678'),
+            username="buffy",
+            email="buffy@buff.com",
+            first_name="not-needed",
+            last_name="not-needed",
+            # obtained by running `poetry run python3 scripts/hash_password.py BIGMOE`
+            password_hash="$2b$12$hz/PMvvmutOVPgZol3.0F.nZboj6O1Fklv0LGWS4xE3UwH1HyVwge",
+            disabled=False,
+            roles=[],
+            tenant=GetUserByEmailResultTenant(id=UUID('12345678123456781234567812345678'), name="aldi")
 
-    app = init_app(db=mock, secret_key="habins", admin_username="admin", admin_password="admin")
-    client = TestClient(app)
-    token = create_access_token("habins", "HS256", {"sub": "bigmoe"}, timedelta(days=1))
-    res: httpx.Response = client.get("/users/me", headers={"authorization": f"Bearer {token}"})
-    assert res.status_code == status.HTTP_401_UNAUTHORIZED
+        ))
 
+        app = init_app(db=mock, secret_key="habins", admin_username="admin", admin_password="admin")
+        client = TestClient(app)
+        token = create_access_token("habins", "HS256", {}, timedelta(days=1))
+        res: httpx.Response = client.get("/users/me", headers={"authorization": f"Bearer {token}"})
+        assert res.status_code == status.HTTP_401_UNAUTHORIZED
 
-@pytest.mark.asyncio
-async def test_users_me__invalid_token_sub_missing():
-    mock = DBMock(query_single_result=GetUserByEmailResult(
-        id="fake-news",
-        username="buffy",
-        email="buffy@buff.com",
-        first_name="not-needed",
-        last_name="not-needed",
-        # obtained by running `poetry run python3 scripts/hash_password.py BIGMOE`
-        password_hash="$2b$12$hz/PMvvmutOVPgZol3.0F.nZboj6O1Fklv0LGWS4xE3UwH1HyVwge",
-        disabled=False,
-        roles=[],
-        tenant=GetUserByEmailResultTenant(id="1234-1234-1234-1234", name="aldi")
+    @pytest.mark.asyncio
+    async def test_users_me__invalid_token_sub_empty():
+        mock = DBMock(query_single_result=GetUserByEmailResult(
+            id=UUID('12345678123456781234567812345678'),
+            username="buffy",
+            email="buffy@buff.com",
+            first_name="not-needed",
+            last_name="not-needed",
+            # obtained by running `poetry run python3 scripts/hash_password.py BIGMOE`
+            password_hash="$2b$12$hz/PMvvmutOVPgZol3.0F.nZboj6O1Fklv0LGWS4xE3UwH1HyVwge",
+            disabled=False,
+            roles=[],
+            tenant=GetUserByEmailResultTenant(id=UUID('12345678123456781234567812345678'), name="aldi")
+        ))
 
-    ))
+        app = init_app(db=mock, secret_key="habins", admin_username="admin", admin_password="admin")
+        client = TestClient(app)
+        token = create_access_token("habins", "HS256", {"sub": ""}, timedelta(days=1))
+        res: httpx.Response = client.get("/users/me", headers={"authorization": f"Bearer {token}"})
+        assert res.status_code == status.HTTP_401_UNAUTHORIZED
 
-    app = init_app(db=mock, secret_key="habins", admin_username="admin", admin_password="admin")
-    client = TestClient(app)
-    token = create_access_token("habins", "HS256", {}, timedelta(days=1))
-    res: httpx.Response = client.get("/users/me", headers={"authorization": f"Bearer {token}"})
-    assert res.status_code == status.HTTP_401_UNAUTHORIZED
+    @pytest.mark.asyncio
+    async def test_users_me__user_disabled():
+        mock = DBMock(query_single_result=GetUserByEmailResult(
+            id=UUID('12345678123456781234567812345678'),
+            username="buffy",
+            email="buffy@buff.com",
+            first_name="not-needed",
+            last_name="not-needed",
+            # obtained by running `poetry run python3 scripts/hash_password.py BIGMOE`
+            password_hash="$2b$12$hz/PMvvmutOVPgZol3.0F.nZboj6O1Fklv0LGWS4xE3UwH1HyVwge",
+            disabled=True,
+            roles=[],
+            tenant=GetUserByEmailResultTenant(id=UUID('12345678123456781234567812345678'), name="aldi"),
+        ))
 
-
-@pytest.mark.asyncio
-async def test_users_me__invalid_token_sub_empty():
-    mock = DBMock(query_single_result=GetUserByEmailResult(
-        id="fake-news",
-        username="buffy",
-        email="buffy@buff.com",
-        first_name="not-needed",
-        last_name="not-needed",
-        # obtained by running `poetry run python3 scripts/hash_password.py BIGMOE`
-        password_hash="$2b$12$hz/PMvvmutOVPgZol3.0F.nZboj6O1Fklv0LGWS4xE3UwH1HyVwge",
-        disabled=False,
-        roles=[],
-        tenant=GetUserByEmailResultTenant(id="1234-1234-1234-1234", name="aldi")
-    ))
-
-    app = init_app(db=mock, secret_key="habins", admin_username="admin", admin_password="admin")
-    client = TestClient(app)
-    token = create_access_token("habins", "HS256", {"sub": ""}, timedelta(days=1))
-    res: httpx.Response = client.get("/users/me", headers={"authorization": f"Bearer {token}"})
-    assert res.status_code == status.HTTP_401_UNAUTHORIZED
-
-
-@pytest.mark.asyncio
-async def test_users_me__user_disabled():
-    mock = DBMock(query_single_result=GetUserByEmailResult(
-        id="fake-news",
-        username="buffy",
-        email="buffy@buff.com",
-        first_name="not-needed",
-        last_name="not-needed",
-        # obtained by running `poetry run python3 scripts/hash_password.py BIGMOE`
-        password_hash="$2b$12$hz/PMvvmutOVPgZol3.0F.nZboj6O1Fklv0LGWS4xE3UwH1HyVwge",
-        disabled=True,
-        roles=[],
-        tenant=GetUserByEmailResultTenant(id="1234-1234-1234-1234", name="aldi"),
-    ))
-
-    app = init_app(db=mock, secret_key="habins", admin_username="admin", admin_password="admin")
-    client = TestClient(app)
-    token = create_access_token("habins", "HS256", {"sub": "buffy"}, timedelta(days=1))
-    res: httpx.Response = client.get("/users/me", headers={"authorization": f"Bearer {token}"})
-    assert res.status_code == status.HTTP_403_FORBIDDEN
+        app = init_app(db=mock, secret_key="habins", admin_username="admin", admin_password="admin")
+        client = TestClient(app)
+        token = create_access_token("habins", "HS256", {"sub": "buffy", "tenant": "aldi"}, timedelta(days=1))
+        res: httpx.Response = client.get("/users/me", headers={"authorization": f"Bearer {token}"})
+        assert res.status_code == status.HTTP_403_FORBIDDEN

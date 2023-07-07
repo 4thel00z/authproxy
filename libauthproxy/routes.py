@@ -7,7 +7,7 @@ from fastapi import Depends, FastAPI, HTTPException, status, Form
 from fastapi.security import OAuth2PasswordRequestForm
 from starlette.requests import Request
 
-from db import create_tenant, create_user, create_role
+from db import create_tenant, create_user, create_role, GetUserByUsernameResult
 from libauthproxy import (
     authenticate_user,
     create_access_token,
@@ -22,7 +22,7 @@ from libauthproxy import (
     get_current_user,
     OAUTH2,
 )
-from libauthproxy.models import CreateUser, CreateRole, Token, User, CreateTenant
+from libauthproxy.models import CreateUser, CreateRole, Token, CreateTenant
 from libauthproxy.utils import generate_basic_auth, flatten
 
 
@@ -100,7 +100,7 @@ def register_routes(app: FastAPI, db: AsyncIOClient, **kwargs):
 
     L.info(f"Registering POST http://{host}:{port}/users/me")
 
-    @app.get("/users/me/", response_model=User)
+    @app.get("/users/me/", response_model=GetUserByUsernameResult)
     async def handle_read_users_me(
             req: Request,
     ):
