@@ -1,6 +1,12 @@
+import secrets
 from contextlib import contextmanager
+from typing import Dict, Optional, Annotated
 
-from typing import Dict, Optional
+from fastapi import Depends, HTTPException
+from fastapi.security import HTTPBasicCredentials, HTTPBasic
+from starlette import status
+
+security = HTTPBasic()
 
 
 @contextmanager
@@ -57,3 +63,31 @@ def problemjson(
         }
     }
     return {"problem": response}
+
+
+def generate_basic_auth(u: str, pw: str):
+    def inner(
+            credentials: Annotated[HTTPBasicCredentials, Depends(security)]
+    ):
+        current_username_bytes = credentials.username.encode("utf8")
+        is_correct_username = secrets.compare_digest(
+            current_username_bytes, u.encode("utf-8")
+        )
+
+        current_password_bytes = credentials.password.encode("utf8")
+        is_correct_password = secrets.compare_digest(
+            current_password_bytes, pw.encode("utf-8")
+        )
+        if not (is_correct_username and is_correct_password):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Incorrect email or password",
+                headers={"WWW-Authenticate": "Basic"},
+            )
+        return credentials.username
+
+    return inner
+
+
+def flatten(l):
+    return [item for sublist in l for item in sublist]

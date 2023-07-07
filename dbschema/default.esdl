@@ -7,6 +7,7 @@ module default {
 		
 		required property updated_at -> datetime {
 			default := datetime_current();
+			rewrite update using (datetime_of_statement());
 		};
 	}
 
@@ -38,10 +39,16 @@ module default {
 	    required property disabled -> bool {
 		default := false;
 	    };
+	    multi link roles -> Role;
 	    constraint exclusive on ( (.tenant, .username) );
 	}
 
-
+	type Role extending Auditable, IsTenantData {
+		required property name -> str;
+		required property scopes -> array<str>{
+			default := <array<str>>[];
+		};
+	}
 
 
 }

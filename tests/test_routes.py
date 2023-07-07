@@ -7,7 +7,7 @@ from starlette import status
 from starlette.testclient import TestClient
 
 from authproxy import init_app
-from db import GetUserByEmailResult
+from db import GetUserByEmailResult, GetUserByEmailResultTenant
 from libauthproxy import get_current_user, create_access_token
 
 
@@ -34,17 +34,20 @@ async def test_create_token__user_is_present_hash_matches():
         # obtained by running `poetry run python3 scripts/hash_password.py password`
         password_hash="$2b$12$lYWCG4Gu9mRViAKBjKW0zudnt9eXeQb0SHEIfJ4fSz3JJ2P1Zdyea",
         disabled=False,
+        roles=[],
+        tenant=GetUserByEmailResultTenant(id="1234-1234-1234-1234", name="aldi")
     )
     mock = DBMock(query_single_result=expected_user)
 
     secret = "habins"
     algorithm = "HS256"
-    app = init_app(db=mock, secret_key=secret, jwt_algorithm=algorithm)
+    app = init_app(db=mock, secret_key=secret, jwt_algorithm=algorithm, admin_username="admin", admin_password="admin")
     client = TestClient(app)
-    res: httpx.Response = client.post("/token", data={
+    res: httpx.Response = client.post("/tokens", data={
         # db always returns, so this is not important for now
         "username": "buffy",
-        "password": "password"
+        "password": "password",
+        "tenant": "aldi"
     })
     assert res.status_code != 401
     res_body = res.json()
@@ -70,14 +73,17 @@ async def test_create_token__user_is_present_wrong_hash():
         # obtained by running `poetry run python3 scripts/hash_password.py BIGMOE`
         password_hash="$2b$12$hz/PMvvmutOVPgZol3.0F.nZboj6O1Fklv0LGWS4xE3UwH1HyVwge",
         disabled=False,
+        roles=[],
+        tenant=GetUserByEmailResultTenant(id="1234-1234-1234-1234", name="aldi")
     ))
 
-    app = init_app(db=mock, secret_key="habins")
+    app = init_app(db=mock, secret_key="habins", admin_username="admin", admin_password="admin")
     client = TestClient(app)
-    res: httpx.Response = client.post("/token", data={
+    res: httpx.Response = client.post("/tokens", data={
         # db always returns, so this is not important for now
         "username": "some-user",
-        "password": "password"
+        "password": "password",
+        "tenant": "aldi"
     })
     assert res.status_code == 401
 
@@ -86,12 +92,13 @@ async def test_create_token__user_is_present_wrong_hash():
 async def test_create_token__no_user():
     mock = DBMock(query_single_result=None)
 
-    app = init_app(db=mock, secret_key="habins")
+    app = init_app(db=mock, secret_key="habins", admin_username="admin", admin_password="admin")
     client = TestClient(app)
-    res: httpx.Response = client.post("/token", data={
+    res: httpx.Response = client.post("/tokens", data={
         # db always returns, so this is not important for now
         "username": "some-user",
-        "password": "password"
+        "password": "password",
+        "tenant": "aldi"
     })
     assert res.status_code == 401
 
@@ -107,9 +114,11 @@ async def test_users_me__happy_flow():
         # obtained by running `poetry run python3 scripts/hash_password.py BIGMOE`
         password_hash="$2b$12$hz/PMvvmutOVPgZol3.0F.nZboj6O1Fklv0LGWS4xE3UwH1HyVwge",
         disabled=False,
+        roles=[],
+        tenant=GetUserByEmailResultTenant(id="1234-1234-1234-1234", name="aldi")
     ))
 
-    app = init_app(db=mock, secret_key="habins")
+    app = init_app(db=mock, secret_key="habins", admin_username="admin", admin_password="admin")
     client = TestClient(app)
     token = create_access_token("habins", "HS256", {"sub": "buffy"}, timedelta(days=1))
     res: httpx.Response = client.get("/users/me", headers={"authorization": f"Bearer {token}"})
@@ -127,7 +136,7 @@ async def test_users_me__happy_flow():
 async def test_users_me__no_user():
     mock = DBMock(query_single_result=None)
 
-    app = init_app(db=mock, secret_key="habins")
+    app = init_app(db=mock, secret_key="habins", admin_username="admin", admin_password="admin")
     client = TestClient(app)
     token = create_access_token("habins", "HS256", {"sub": "bigmoe"}, timedelta(days=1))
     res: httpx.Response = client.get("/users/me", headers={"authorization": f"Bearer {token}"})
@@ -145,9 +154,12 @@ async def test_users_me__invalid_token_sub_missing():
         # obtained by running `poetry run python3 scripts/hash_password.py BIGMOE`
         password_hash="$2b$12$hz/PMvvmutOVPgZol3.0F.nZboj6O1Fklv0LGWS4xE3UwH1HyVwge",
         disabled=False,
+        roles=[],
+        tenant=GetUserByEmailResultTenant(id="1234-1234-1234-1234", name="aldi")
+
     ))
 
-    app = init_app(db=mock, secret_key="habins")
+    app = init_app(db=mock, secret_key="habins", admin_username="admin", admin_password="admin")
     client = TestClient(app)
     token = create_access_token("habins", "HS256", {}, timedelta(days=1))
     res: httpx.Response = client.get("/users/me", headers={"authorization": f"Bearer {token}"})
@@ -165,9 +177,11 @@ async def test_users_me__invalid_token_sub_empty():
         # obtained by running `poetry run python3 scripts/hash_password.py BIGMOE`
         password_hash="$2b$12$hz/PMvvmutOVPgZol3.0F.nZboj6O1Fklv0LGWS4xE3UwH1HyVwge",
         disabled=False,
+        roles=[],
+        tenant=GetUserByEmailResultTenant(id="1234-1234-1234-1234", name="aldi")
     ))
 
-    app = init_app(db=mock, secret_key="habins")
+    app = init_app(db=mock, secret_key="habins", admin_username="admin", admin_password="admin")
     client = TestClient(app)
     token = create_access_token("habins", "HS256", {"sub": ""}, timedelta(days=1))
     res: httpx.Response = client.get("/users/me", headers={"authorization": f"Bearer {token}"})
@@ -185,9 +199,11 @@ async def test_users_me__user_disabled():
         # obtained by running `poetry run python3 scripts/hash_password.py BIGMOE`
         password_hash="$2b$12$hz/PMvvmutOVPgZol3.0F.nZboj6O1Fklv0LGWS4xE3UwH1HyVwge",
         disabled=True,
+        roles=[],
+        tenant=GetUserByEmailResultTenant(id="1234-1234-1234-1234", name="aldi"),
     ))
 
-    app = init_app(db=mock, secret_key="habins")
+    app = init_app(db=mock, secret_key="habins", admin_username="admin", admin_password="admin")
     client = TestClient(app)
     token = create_access_token("habins", "HS256", {"sub": "buffy"}, timedelta(days=1))
     res: httpx.Response = client.get("/users/me", headers={"authorization": f"Bearer {token}"})
