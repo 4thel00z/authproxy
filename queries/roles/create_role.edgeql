@@ -1,5 +1,5 @@
 INSERT Role {
-	name := <str>$tenant,
+	name := <str>$name,
 	scopes := <array<str>>$scopes,
-	tenant := (SELECT Tenant FILTER Tenant.name = <str>$tenant_name),
+	tenant := (SELECT Tenant FILTER Tenant.name = <str>$tenant),
 };
