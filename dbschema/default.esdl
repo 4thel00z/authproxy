@@ -20,7 +20,9 @@ module default {
 
 	abstract type IsTenantData {
 		annotation description := "This is a type to use for data that needs tenant access scope/semantics";
-		required link tenant -> Tenant;
+		required link tenant -> Tenant{
+		  on target delete delete source;
+		};
 	}
 	
 
