@@ -1,5 +1,8 @@
 import secrets
 from contextlib import contextmanager
+from logging import getLogger as get_logger
+from logging.config import fileConfig as logger_file_config
+from pathlib import Path
 from typing import Dict, Optional, Annotated
 
 from fastapi import Depends, HTTPException
@@ -91,3 +94,7 @@ def generate_basic_auth(u: str, pw: str):
 
 def flatten(l):
     return [item for sublist in l for item in sublist]
+
+
+logger_file_config(str(Path(__file__).parent / 'logging.conf'), disable_existing_loggers=False)
+L = get_logger(__name__)
