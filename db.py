@@ -2,14 +2,24 @@
 #     'queries/roles/create_role.edgeql'
 #     'queries/tenants/create_tenant.edgeql'
 #     'queries/users/create_user.edgeql'
+#     'queries/roles/delete_role.edgeql'
+#     'queries/tenants/delete_tenant.edgeql'
+#     'queries/users/delete_user.edgeql'
 #     'queries/users/get_user_by_email.edgeql'
 #     'queries/users/get_user_by_username.edgeql'
+#     'queries/roles/list_roles.edgeql'
+#     'queries/tenants/list_tenants.edgeql'
+#     'queries/users/list_users.edgeql'
+#     'queries/roles/read_role.edgeql'
+#     'queries/tenants/read_tenant.edgeql'
+#     'queries/users/read_user.edgeql'
 # WITH:
 #     $ edgedb-py --file db.py
 
 
 from __future__ import annotations
 import dataclasses
+import datetime
 import edgedb
 import uuid
 
@@ -77,24 +87,61 @@ class GetUserByUsernameResult(NoPydanticValidation):
     roles: list[GetUserByEmailResultRolesItem]
 
 
+@dataclasses.dataclass
+class ListRolesResult(NoPydanticValidation):
+    id: uuid.UUID
+    name: str
+    scopes: list[str]
+    tenant: CreateTenantResult
+    created_at: datetime.datetime
+
+
+@dataclasses.dataclass
+class ListTenantsResult(NoPydanticValidation):
+    id: uuid.UUID
+    name: str
+    created_at: datetime.datetime
+
+
+@dataclasses.dataclass
+class ListUsersResult(NoPydanticValidation):
+    id: uuid.UUID
+    username: str
+    created_at: datetime.datetime
+    tenant: GetUserByEmailResultTenant
+    first_name: str
+    last_name: str
+    email: str
+    password_hash: str
+    disabled: bool
+    roles: list[ListUsersResultRolesItem]
+
+
+@dataclasses.dataclass
+class ListUsersResultRolesItem(NoPydanticValidation):
+    id: uuid.UUID
+    scopes: list[str]
+    name: str
+
+
 async def create_role(
     executor: edgedb.AsyncIOExecutor,
     *,
-    tenant: str,
+    name: str,
     scopes: list[str],
-    tenant_name: str,
+    tenant: str,
 ) -> CreateRoleResult:
     return await executor.query_single(
         """\
         INSERT Role {
-        	name := <str>$tenant,
+        	name := <str>$name,
         	scopes := <array<str>>$scopes,
-        	tenant := (SELECT Tenant FILTER Tenant.name = <str>$tenant_name),
+        	tenant := (SELECT Tenant FILTER Tenant.name = <str>$tenant),
         };\
         """,
-        tenant=tenant,
+        name=name,
         scopes=scopes,
-        tenant_name=tenant_name,
+        tenant=tenant,
     )
 
 
@@ -143,6 +190,51 @@ async def create_user(
         password_hash=password_hash,
         tenant_name=tenant_name,
         roles=roles,
+    )
+
+
+async def delete_role(
+    executor: edgedb.AsyncIOExecutor,
+    *,
+    name: str,
+    tenant: str,
+) -> list[CreateRoleResult]:
+    return await executor.query(
+        """\
+        DELETE Role
+        FILTER
+        .name = <str>$name AND .tenant.name = <str>$tenant;\
+        """,
+        name=name,
+        tenant=tenant,
+    )
+
+
+async def delete_tenant(
+    executor: edgedb.AsyncIOExecutor,
+    *,
+    tenant: str,
+) -> CreateTenantResult | None:
+    return await executor.query_single(
+        """\
+        DELETE Tenant FILTER .name = <str>$tenant;\
+        """,
+        tenant=tenant,
+    )
+
+
+async def delete_user(
+    executor: edgedb.AsyncIOExecutor,
+    *,
+    username: str,
+    tenant: str,
+) -> CreateUserResult | None:
+    return await executor.query_single(
+        """\
+        DELETE User FILTER .username = <str>$username AND .tenant = (SELECT Tenant FILTER Tenant.name = <str> $tenant);\
+        """,
+        username=username,
+        tenant=tenant,
     )
 
 
@@ -195,6 +287,89 @@ async def get_user_by_username(
         	  scopes
         	}
         } FILTER .username = <str>$username AND .tenant.name = <str>$tenant LIMIT 1;\
+        """,
+        username=username,
+        tenant=tenant,
+    )
+
+
+async def list_roles(
+    executor: edgedb.AsyncIOExecutor,
+    *,
+    tenant: str,
+) -> list[ListRolesResult]:
+    return await executor.query(
+        """\
+        SELECT Role {name,scopes,tenant,created_at}
+        FILTER
+        .tenant.name = <str>$tenant;\
+        """,
+        tenant=tenant,
+    )
+
+
+async def list_tenants(
+    executor: edgedb.AsyncIOExecutor,
+) -> list[ListTenantsResult]:
+    return await executor.query(
+        """\
+        SELECT Tenant{name,created_at};\
+        """,
+    )
+
+
+async def list_users(
+    executor: edgedb.AsyncIOExecutor,
+    *,
+    tenant: str,
+) -> list[ListUsersResult]:
+    return await executor.query(
+        """\
+        SELECT User{username,created_at,tenant:{name}, first_name,last_name,email,password_hash,disabled,roles:{scopes,name}} FILTER .tenant = (SELECT Tenant FILTER Tenant.name = <str> $tenant);\
+        """,
+        tenant=tenant,
+    )
+
+
+async def read_role(
+    executor: edgedb.AsyncIOExecutor,
+    *,
+    name: str,
+    tenant: str,
+) -> ListRolesResult | None:
+    return await executor.query_single(
+        """\
+        SELECT Role {name,scopes,tenant,created_at}
+        FILTER
+        .name = <str>$name AND .tenant.name = <str>$tenant LIMIT 1;\
+        """,
+        name=name,
+        tenant=tenant,
+    )
+
+
+async def read_tenant(
+    executor: edgedb.AsyncIOExecutor,
+    *,
+    tenant: str,
+) -> ListTenantsResult | None:
+    return await executor.query_single(
+        """\
+        SELECT Tenant{name,created_at} FILTER .name = <str>$tenant LIMIT 1;\
+        """,
+        tenant=tenant,
+    )
+
+
+async def read_user(
+    executor: edgedb.AsyncIOExecutor,
+    *,
+    username: str,
+    tenant: str,
+) -> ListUsersResult | None:
+    return await executor.query_single(
+        """\
+        SELECT User{username,created_at,tenant:{name}, first_name,last_name,email,password_hash,disabled,roles:{scopes,name}} FILTER .username = <str>$username AND .tenant = (SELECT Tenant FILTER Tenant.name = <str> $tenant) LIMIT 1;\
         """,
         username=username,
         tenant=tenant,
