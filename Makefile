@@ -4,7 +4,7 @@ run:
 	@poetry run python3 authproxy/__main__.py
 
 generate:
-	@edgedb-py --file db.py
+	@poetry run edgedb-py --file db.py
 
 test:
 	@poetry run pytest
