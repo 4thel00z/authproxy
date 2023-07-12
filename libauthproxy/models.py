@@ -15,10 +15,24 @@ class CreateUser(BaseModel):
     roles: str
 
 
-class CreateRole(BaseModel):
+class DeleteUser(BaseModel):
+    username: str
     tenant: str
+
+
+class CreateRole(BaseModel):
+    name: str
     scopes: list[str]
-    tenant_name: str
+    tenant: str
+
+
+class DeleteRole(BaseModel):
+    name: str
+    tenant: str
+
+
+class DeleteTenant(BaseModel):
+    tenant: str
 
 
 class Token(BaseModel):
