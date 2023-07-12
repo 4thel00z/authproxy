@@ -10,7 +10,7 @@ from starlette import status
 from typing_extensions import Annotated
 
 from db import get_user_by_username, GetUserByUsernameResult
-from libauthproxy.utils import catch
+from libauthproxy.utils import catch, L
 
 PWD_CONTEXT = CryptContext(schemes=["bcrypt"], deprecated="auto")
 OAUTH2 = OAuth2PasswordBearer(tokenUrl="token")
@@ -24,6 +24,7 @@ ADMIN_USERNAME = environ.get("ADMIN_USERNAME")
 ADMIN_PASSWORD = environ.get("ADMIN_PASSWORD")
 HOST = environ.get("HOST", "0.0.0.0")
 PORT = int(environ.get("PORT", "1337"))
+DEBUG = bool(environ.get("DEBUG", ""))
 
 
 def verify_password(plain_password, hashed_password):
@@ -69,16 +70,19 @@ async def get_current_user(
         tenant: str = payload.get("tenant")
 
         if not username or not tenant:
+            L.error("get_current_user(IV): Username or tenant not set (username,tenant)=%s", (username, tenant))
             raise credentials_exception
 
         user = await get_user_by_username(db, username=username, tenant=tenant)
 
         if user is None:
+            L.error("get_current_user(IV): User not found for (username,tenant)=%s", (username, tenant))
             raise credentials_exception
 
         return user
 
     if errs.err:
+        L.error("get_current_user(IV): Something went wrong=%s", errs.err)
         raise credentials_exception
 
 
