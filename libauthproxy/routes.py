@@ -19,6 +19,7 @@ from db import (
     delete_role,
     delete_tenant,
     GetUserByUsernameResult, delete_user, read_role, list_roles, read_tenant, list_tenants, read_user, list_users,
+    update_tenant,
 )
 from libauthproxy import (
     authenticate_user,
@@ -35,7 +36,8 @@ from libauthproxy import (
     OAUTH2,
     DEBUG,
 )
-from libauthproxy.models import CreateUser, CreateRole, Token, CreateTenant, DeleteRole, DeleteTenant, DeleteUser
+from libauthproxy.models import CreateUser, CreateRole, Token, CreateTenant, DeleteRole, DeleteTenant, DeleteUser, \
+    UpdateTenant
 from libauthproxy.utils import generate_basic_auth, flatten, L
 
 
@@ -122,6 +124,15 @@ def register_routes(app: FastAPI, db: AsyncIOClient, **kwargs):
             tenant: DeleteTenant,
     ):
         return await delete_tenant(db, **tenant.dict())
+
+    L.info(f"Registering PATCH http://{host}:{port}/tenants")
+
+    @app.patch("/tenants")
+    async def handle_update_tenant(
+            _: Annotated[str, Depends(get_current_username)],
+            tenant: UpdateTenant,
+    ):
+        return await update_tenant(db, **tenant.dict())
 
     L.info(f"Registering DELETE http://{host}:{port}/users")
 
