@@ -13,6 +13,7 @@
 #     'queries/roles/read_role.edgeql'
 #     'queries/tenants/read_tenant.edgeql'
 #     'queries/users/read_user.edgeql'
+#     'queries/tenants/update_tenant.edgeql'
 # WITH:
 #     $ edgedb-py --file db.py
 
@@ -198,12 +199,12 @@ async def delete_role(
     *,
     name: str,
     tenant: str,
-) -> list[CreateRoleResult]:
-    return await executor.query(
+) -> CreateRoleResult | None:
+    return await executor.query_single(
         """\
         DELETE Role
         FILTER
-        .name = <str>$name AND .tenant.name = <str>$tenant;\
+        .name = <str>$name AND .tenant.name = <str>$tenant LIMIT 1;\
         """,
         name=name,
         tenant=tenant,
@@ -373,4 +374,21 @@ async def read_user(
         """,
         username=username,
         tenant=tenant,
+    )
+
+
+async def update_tenant(
+    executor: edgedb.AsyncIOExecutor,
+    *,
+    tenant: str,
+    new_tenant: str,
+) -> CreateTenantResult | None:
+    return await executor.query_single(
+        """\
+        Update Tenant  
+        FILTER .name = <str>$tenant 
+        SET { name := <str>$new_tenant};\
+        """,
+        tenant=tenant,
+        new_tenant=new_tenant,
     )
