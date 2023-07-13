@@ -4,6 +4,10 @@ from pydantic import BaseModel
 class CreateTenant(BaseModel):
     tenant: str
 
+class UpdateTenant(BaseModel):
+    tenant: str
+    new_tenant: str
+
 
 class CreateUser(BaseModel):
     username: str
